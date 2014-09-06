@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math"
 	"os"
@@ -10,8 +11,6 @@ import (
 	"github.com/bmizerany/perks/quantile"
 	"github.com/cespare/argf"
 )
-
-var quants = []float64{0.5, 0.9, 0.99}
 
 type Stats struct {
 	Count      float64
@@ -40,10 +39,27 @@ func printStat(name string, value float64) {
 }
 
 func main() {
+	quantStr := flag.String("quantiles", "0.5,0.9,0.99", "Quantiles to record")
+	flag.Parse()
+
+	var quants []float64
+	for _, qs := range strings.Split(*quantStr, ",") {
+		qs = strings.TrimSpace(qs)
+		f, err := strconv.ParseFloat(qs, 64)
+		if err != nil {
+			fatal(err)
+		}
+		if f <= 0 || f >= 1 {
+			fatal(fmt.Errorf("quantile values must be in (0, 1); got %f", f))
+		}
+		quants = append(quants, f)
+	}
+
 	stats := &Stats{
 		Quantiles: quantile.NewTargeted(quants...),
 	}
 	var nonNumericFound int64
+	argf.Init(flag.Args())
 	for argf.Scan() {
 		s := argf.String()
 		if s == "" {
@@ -57,8 +73,7 @@ func main() {
 		stats.Insert(v)
 	}
 	if err := argf.Error(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		fatal(err)
 	}
 	if nonNumericFound > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: found %d non-numeric lines of input\n", nonNumericFound)
@@ -76,4 +91,9 @@ func main() {
 		name = strings.TrimRight(name, "0")
 		printStat(name, stats.Quantiles.Query(q))
 	}
+}
+
+func fatal(err error) {
+	fmt.Println(err)
+	os.Exit(1)
 }
