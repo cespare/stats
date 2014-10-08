@@ -29,7 +29,7 @@ func (s *Stats) Hist(n int) *Hist {
 	h.buckets[0].start = s.min
 	for j := 0; j < len(s.sorted); {
 		v := s.sorted[j]
-		if v > limit && (i < len(h.buckets)-1 || j < len(s.sorted)-1) {
+		if v > limit && i < len(h.buckets)-1 {
 			i++
 			h.buckets[i].start = limit
 			limit = s.min + float64(i)*(rnge/float64(n))
