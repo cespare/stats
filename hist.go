@@ -32,7 +32,7 @@ func (s *Stats) Hist(n int) *Hist {
 		if v > limit && i < len(h.buckets)-1 {
 			i++
 			h.buckets[i].start = limit
-			limit = s.min + float64(i)*(rnge/float64(n))
+			limit = s.min + float64(i+1)*(rnge/float64(n))
 			continue
 		}
 		h.buckets[i].count++
