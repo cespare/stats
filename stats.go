@@ -117,10 +117,9 @@ func main() {
 	}
 	if nonNumericFound > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: found %d non-numeric lines of input\n", nonNumericFound)
-		return
 	}
 	if btree.Len() == 0 {
-		fmt.Fprintln(os.Stderr, "Warning: no numbers given")
+		fmt.Fprintln(os.Stderr, "No numbers given")
 		return
 	}
 	stats := StatsFromBtree(btree)
