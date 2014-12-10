@@ -46,8 +46,9 @@ func (h *Hist) String() string {
 	labels := make([]string, len(h.buckets))
 	labelSpaceBefore := 0
 	labelSpaceAfter := 0
-	var maxCount float64
+	var maxCount, sum float64
 	for i, b := range h.buckets {
+		sum += float64(b.count)
 		s := "<"
 		if i == len(h.buckets)-1 {
 			s = "≤"
@@ -73,7 +74,7 @@ func (h *Hist) String() string {
 		after := labelSpaceAfter - runeLen(labels[i]) + xPos + 1
 		fmt.Fprintf(&buf, " %*s%s%*s │", before, "", labels[i], after, "")
 		fmt.Fprint(&buf, makeBar((float64(b.count)/float64(maxCount))*histBlocks))
-		fmt.Fprintf(&buf, " %d\n", b.count)
+		fmt.Fprintf(&buf, " %d (%.3f%%)\n", b.count, 100*float64(b.count)/sum)
 	}
 	b := buf.Bytes()
 	return string(b[:len(b)-1]) // drop the \n
