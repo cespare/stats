@@ -1,6 +1,7 @@
 # stats
 
-A command-line utility to provide basic summary statistics over numbers read from files or stdin.
+A command-line utility to provide basic summary statistics over numbers read
+from files or stdin.
 
 `stats` reads from filenames or, if none are given, from stdin.
 
@@ -20,12 +21,14 @@ A command-line utility to provide basic summary statistics over numbers read fro
     quantile 0.9    107.000
     quantile 0.99   107.000
 
-`stats` can also draw you a unicode histogram if you give it the `-hist` flag. `-buckets N` controls the size
-of the histogram. This will look better/worse/broken depending on how your terminal renders box-drawing
+`stats` can also draw you a unicode histogram if you give it the `-hist` flag.
+`-buckets N` controls the size of the histogram. This will look
+better/worse/broken depending on how your terminal renders box-drawing
 characters.
 
-As an example, I have an nginx log file. The last column of the log is the latency, in seconds. Suppose I want
-to see what the latency distribution is like.
+As an example, I have an nginx log file. The last column of the log is the
+latency, in seconds. Suppose I want to see what the latency distribution is
+like.
 
 ```
 $ cat nginx.log | awk '{print $NF}' | stats
@@ -39,8 +42,9 @@ quantile 0.9      0.030
 quantile 0.99     0.290
 ```
 
-We can see from max and by the difference in the median and the mean that there are some big outliers. Let's
-zoom in on the body of the data (by cutting away the outliers for now) and see what that looks like:
+We can see from max and by the difference in the median and the mean that there
+are some big outliers. Let's zoom in on the body of the data (by cutting away
+the outliers for now) and see what that looks like:
 
 ![screenshot](/screenshot.png)
 
