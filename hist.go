@@ -6,9 +6,7 @@ import (
 	"strings"
 )
 
-const (
-	histBlocks = 70
-)
+const histBlocks = 70
 
 type Bucket struct {
 	start float64

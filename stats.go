@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"os"
 	"strconv"
@@ -75,6 +76,7 @@ func StatsFromBtree(btree *b.Tree) *Stats {
 }
 
 func main() {
+	log.SetFlags(0)
 	quantStr := flag.String("quantiles", "0.5,0.9,0.99", "Quantiles to record")
 	printHist := flag.Bool("hist", false, "Print a histogram")
 	histBuckets := flag.Int("buckets", 10, "How many buckets for the histogram")
@@ -89,10 +91,10 @@ func main() {
 		qs = strings.TrimSpace(qs)
 		f, err := strconv.ParseFloat(qs, 64)
 		if err != nil {
-			fatal(err)
+			log.Fatal(err)
 		}
 		if f <= 0 || f >= 1 {
-			fatal(fmt.Errorf("quantile values must be in (0, 1); got %f", f))
+			log.Fatal(fmt.Errorf("quantile values must be in (0, 1); got %f", f))
 		}
 		quants = append(quants, f)
 	}
@@ -113,7 +115,7 @@ func main() {
 		btree.Put(v, func(c uint, _ bool) (newC uint, write bool) { return c + 1, true })
 	}
 	if err := argf.Error(); err != nil {
-		fatal(err)
+		log.Fatal(err)
 	}
 	if nonNumericFound > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: found %d non-numeric lines of input\n", nonNumericFound)
@@ -136,11 +138,6 @@ func main() {
 	if *printHist {
 		fmt.Println(stats.Hist(*histBuckets))
 	}
-}
-
-func fatal(err error) {
-	fmt.Println(err)
-	os.Exit(1)
 }
 
 func NewBTree() *b.Tree {
