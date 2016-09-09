@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 
@@ -23,7 +22,7 @@ func summarize(args []string) {
 	fs.Parse(args)
 
 	if *histBuckets <= 1 {
-		fmt.Fprintf(os.Stderr, "%d is an invalid number of buckets\n", *histBuckets)
+		log.Fatalf("%d is an invalid number of buckets", *histBuckets)
 	}
 
 	var quants []float64
@@ -34,7 +33,7 @@ func summarize(args []string) {
 			log.Fatal(err)
 		}
 		if f <= 0 || f >= 1 {
-			log.Fatal(fmt.Errorf("quantile values must be in (0, 1); got %f", f))
+			log.Fatalf("quantile values must be in (0, 1); got %g", f)
 		}
 		quants = append(quants, f)
 	}
@@ -58,10 +57,10 @@ func summarize(args []string) {
 		log.Fatal(err)
 	}
 	if nonNumericFound > 0 {
-		fmt.Fprintf(os.Stderr, "Warning: found %d non-numeric lines of input\n", nonNumericFound)
+		log.Printf("warning: found %d non-numeric lines of input", nonNumericFound)
 	}
 	if btree.Len() == 0 {
-		fmt.Fprintln(os.Stderr, "No numbers given")
+		log.Println("no numbers given")
 		return
 	}
 	stats := StatsFromBtree(btree)
