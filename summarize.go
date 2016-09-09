@@ -7,8 +7,11 @@ import (
 	"io"
 	"log"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
+	"text/tabwriter"
+	"unicode/utf8"
 
 	"github.com/cespare/argf"
 	"github.com/cespare/stats/b"
@@ -38,7 +41,7 @@ func summarize(args []string) {
 		quants = append(quants, f)
 	}
 
-	btree := NewBTree()
+	sr := newSummarizer(quants, *histBuckets)
 	var nonNumeric int64
 	argf.Init(flag.Args())
 	for argf.Scan() {
@@ -51,7 +54,7 @@ func summarize(args []string) {
 			nonNumeric++
 			continue
 		}
-		btree.Put(v, func(c uint, _ bool) (newC uint, write bool) { return c + 1, true })
+		sr.add(v)
 	}
 	if err := argf.Error(); err != nil {
 		log.Fatal(err)
@@ -59,88 +62,24 @@ func summarize(args []string) {
 	if nonNumeric > 0 {
 		log.Printf("warning: found %d non-numeric lines of input", nonNumeric)
 	}
-	if btree.Len() == 0 {
+	if sr.count == 0 {
 		log.Println("no numbers given")
 		return
 	}
-	stats := StatsFromBtree(btree)
-	printStat("count", stats.Count)
-	printStat("min", stats.min)
-	printStat("max", stats.max)
-	printStat("mean", stats.Mean())
-	printStat("std. dev.", stats.Stdev())
-	for _, q := range quants {
-		name := fmt.Sprintf("quantile %g", q)
-		printStat(name, stats.Quant(q))
-	}
+	s := sr.summarize()
+	fmt.Println(s)
 	if *printHist {
-		fmt.Println(stats.Hist(*histBuckets))
+		fmt.Println(&s.hist)
 	}
 }
 
-type Stats struct {
-	Count      float64
-	min        float64
-	max        float64
-	sum        float64
-	sumSquares float64
-	sorted     []float64
+type summarizer struct {
+	summary
+	btree *b.Tree
 }
 
-func (s *Stats) Mean() float64 {
-	return s.sum / s.Count
-}
-
-func (s *Stats) Stdev() float64 {
-	return math.Sqrt(s.Count*s.sumSquares-(s.sum*s.sum)) / s.Count
-}
-
-func (s *Stats) Quant(q float64) float64 {
-	if q < 0 || q > 1 {
-		panic("bad quantile")
-	}
-	i := round((s.Count - 1) * q)
-	return s.sorted[i]
-}
-
-func round(f float64) int { return int(f + 0.5) }
-
-func printStat(name string, value float64) {
-	fmt.Printf("%-15s %7.3f\n", name, value)
-}
-
-func StatsFromBtree(btree *b.Tree) *Stats {
-	enum, err := btree.SeekFirst()
-	if err != nil {
-		panic(err)
-	}
-	s := &Stats{sorted: make([]float64, 0, btree.Len())}
-	for {
-		k, c, err := enum.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			panic(err)
-		}
-		if s.Count == 0 || k < s.min {
-			s.min = k
-		}
-		if s.Count == 0 || k > s.max {
-			s.max = k
-		}
-		for i := 0; i < int(c); i++ {
-			s.sorted = append(s.sorted, k)
-			s.Count++
-			s.sum += k
-			s.sumSquares += k * k
-		}
-	}
-	return s
-}
-
-func NewBTree() *b.Tree {
-	return b.TreeNew(func(a, b float64) int {
+func newSummarizer(quants []float64, numBuckets int) *summarizer {
+	btree := b.TreeNew(func(a, b float64) int {
 		if a < b {
 			return -1
 		}
@@ -149,44 +88,128 @@ func NewBTree() *b.Tree {
 		}
 		return 1
 	})
-}
-
-type Bucket struct {
-	start float64
-	count uint64
-}
-
-type Hist struct {
-	bucketSize float64
-	buckets    []Bucket
-}
-
-func (s *Stats) Hist(n int) *Hist {
-	h := &Hist{buckets: make([]Bucket, n)}
-	rnge := s.max - s.min
-	h.bucketSize = rnge / float64(n)
-	i := 0
-	limit := s.min + h.bucketSize
-	h.buckets[0].start = s.min
-	for j := 0; j < len(s.sorted); {
-		v := s.sorted[j]
-		if v >= limit && i < len(h.buckets)-1 {
-			i++
-			h.buckets[i].start = limit
-			limit = s.min + float64(i+1)*(rnge/float64(n))
-			continue
-		}
-		h.buckets[i].count++
-		j++
+	sr := &summarizer{
+		btree: btree,
+		summary: summary{
+			quants: make([]quantile, len(quants)),
+			hist:   hist{buckets: make([]histBucket, numBuckets)},
+		},
 	}
-	return h
+	sort.Float64s(quants)
+	for i, q := range quants {
+		sr.quants[i].q = q
+	}
+	return sr
+}
+
+func (sr *summarizer) add(v float64) {
+	if sr.count == 0 || v < sr.min {
+		sr.min = v
+	}
+	if sr.count == 0 || v > sr.max {
+		sr.max = v
+	}
+	sr.btree.Put(v, func(c int64, _ bool) (int64, bool) { return c + 1, true })
+	sr.count++
+}
+
+func (sr *summarizer) summarize() *summary {
+	it, err := sr.btree.SeekFirst()
+	if err != nil {
+		panic(err)
+	}
+	for i, q := range sr.quants {
+		sr.quants[i].i = round(q.q * float64(sr.count-1))
+	}
+	var (
+		qi   int
+		bi   int
+		i    int64
+		rnge = sr.max - sr.min
+	)
+	// TODO: If the range is large, expand the bucketsize and start/end a
+	// little bit to obtain integer boundaries.
+	sr.bucketSize = rnge / float64(len(sr.buckets))
+	sr.buckets[0].start = sr.min
+	bucketLimit := sr.min + sr.bucketSize
+	for {
+		v, c, err := it.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
+		for j := 0; j < int(c); j++ {
+			sr.sum += v
+			sr.sumSquares += v * v
+			for qi < len(sr.quants) && i == sr.quants[qi].i {
+				sr.quants[qi].v = v
+				qi++
+			}
+			i++
+		}
+		for v >= bucketLimit && bi < len(sr.buckets)-1 {
+			bi++
+			sr.buckets[bi].start = bucketLimit
+			bucketLimit = sr.min + float64(bi+1)*sr.bucketSize
+		}
+		sr.buckets[bi].count += c
+	}
+	return &sr.summary
+}
+
+type summary struct {
+	count      int64
+	min        float64
+	max        float64
+	sum        float64
+	sumSquares float64
+	quants     []quantile
+	hist
+}
+
+type quantile struct {
+	q float64 // e.g., 0.9 for 90th percentile
+	i int64   // index of quantile value
+	v float64 // quantile value
+}
+
+type histBucket struct {
+	start float64
+	count int64
+}
+
+type hist struct {
+	bucketSize float64
+	buckets    []histBucket
+}
+
+func (s *summary) String() string {
+	var buf bytes.Buffer
+	tw := tabwriter.NewWriter(&buf, 0, 0, 4, ' ', 0)
+
+	n := float64(s.count)
+	mean := s.sum / n
+	stdev := math.Sqrt(n*s.sumSquares-(s.sum*s.sum)) / n
+
+	fmt.Fprintf(tw, "count\t%d\n", s.count)
+	fmt.Fprintf(tw, "min\t%g\n", s.min)
+	fmt.Fprintf(tw, "min\t%g\n", s.max)
+	fmt.Fprintf(tw, "mean\t%g\n", mean)
+	fmt.Fprintf(tw, "std. dev.\t%g\n", stdev)
+	for _, q := range s.quants {
+		fmt.Fprintf(tw, "quantile %g\t%g\n", q.q, q.v)
+	}
+
+	tw.Flush()
+	b := buf.Bytes()
+	return string(b[:len(b)-1]) // drop the \n
 }
 
 const histBlocks = 70
 
-func (h *Hist) String() string {
-	// TODO: If the range is large, expand the bucketsize and start/end
-	// get integer boundaries.
+func (h *hist) String() string {
 	labels := make([]string, len(h.buckets))
 	labelSpaceBefore := 0
 	labelSpaceAfter := 0
@@ -202,7 +225,7 @@ func (h *Hist) String() string {
 		if xPos > labelSpaceBefore {
 			labelSpaceBefore = xPos
 		}
-		if after := runeLen(label) - xPos - 1; after > labelSpaceAfter {
+		if after := utf8.RuneCountInString(label) - xPos - 1; after > labelSpaceAfter {
 			labelSpaceAfter = after
 		}
 		labels[i] = label
@@ -215,16 +238,14 @@ func (h *Hist) String() string {
 	for i, b := range h.buckets {
 		xPos := runeIndex(labels[i], 'x')
 		before := labelSpaceBefore - xPos
-		after := labelSpaceAfter - runeLen(labels[i]) + xPos + 1
+		after := labelSpaceAfter - utf8.RuneCountInString(labels[i]) + xPos + 1
 		fmt.Fprintf(&buf, " %*s%s%*s │", before, "", labels[i], after, "")
-		fmt.Fprint(&buf, makeBar((float64(b.count)/float64(maxCount))*histBlocks))
+		fmt.Fprint(&buf, bar((float64(b.count)/float64(maxCount))*histBlocks))
 		fmt.Fprintf(&buf, " %d (%.3f%%)\n", b.count, 100*float64(b.count)/sum)
 	}
 	b := buf.Bytes()
 	return string(b[:len(b)-1]) // drop the \n
 }
-
-func runeLen(s string) int { return len([]rune(s)) }
 
 func runeIndex(s string, r rune) int {
 	for i, r2 := range []rune(s) {
@@ -247,9 +268,14 @@ var barEighths = [9]rune{
 	'█', // full
 }
 
-func makeBar(n float64) string {
-	eighths := round(n * 8)
+func bar(n float64) string {
+	eighths := int(round(n * 8))
 	full := eighths / 8
 	rem := eighths % 8
 	return strings.Repeat(string(barEighths[8]), full) + string(barEighths[rem])
+}
+
+// assumes positive v
+func round(v float64) int64 {
+	return int64(v + 0.5)
 }
