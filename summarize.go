@@ -39,7 +39,7 @@ func summarize(args []string) {
 	}
 
 	btree := NewBTree()
-	var nonNumericFound int64
+	var nonNumeric int64
 	argf.Init(flag.Args())
 	for argf.Scan() {
 		s := argf.String()
@@ -48,7 +48,7 @@ func summarize(args []string) {
 		}
 		v, err := strconv.ParseFloat(s, 64)
 		if err != nil {
-			nonNumericFound++
+			nonNumeric++
 			continue
 		}
 		btree.Put(v, func(c uint, _ bool) (newC uint, write bool) { return c + 1, true })
@@ -56,8 +56,8 @@ func summarize(args []string) {
 	if err := argf.Error(); err != nil {
 		log.Fatal(err)
 	}
-	if nonNumericFound > 0 {
-		log.Printf("warning: found %d non-numeric lines of input", nonNumericFound)
+	if nonNumeric > 0 {
+		log.Printf("warning: found %d non-numeric lines of input", nonNumeric)
 	}
 	if btree.Len() == 0 {
 		log.Println("no numbers given")
@@ -70,8 +70,7 @@ func summarize(args []string) {
 	printStat("mean", stats.Mean())
 	printStat("std. dev.", stats.Stdev())
 	for _, q := range quants {
-		name := fmt.Sprintf("quantile %f", q)
-		name = strings.TrimRight(name, "0")
+		name := fmt.Sprintf("quantile %g", q)
 		printStat(name, stats.Quant(q))
 	}
 	if *printHist {
@@ -186,7 +185,8 @@ func (s *Stats) Hist(n int) *Hist {
 const histBlocks = 70
 
 func (h *Hist) String() string {
-	// TODO: if the range is large, expand the bucketsize and start/end a bit to get integer boundaries.
+	// TODO: If the range is large, expand the bucketsize and start/end
+	// get integer boundaries.
 	labels := make([]string, len(h.buckets))
 	labelSpaceBefore := 0
 	labelSpaceAfter := 0
