@@ -195,7 +195,7 @@ func (s *summary) String() string {
 
 	fmt.Fprintf(tw, "count\t%d\n", s.count)
 	fmt.Fprintf(tw, "min\t%g\n", s.min)
-	fmt.Fprintf(tw, "min\t%g\n", s.max)
+	fmt.Fprintf(tw, "max\t%g\n", s.max)
 	fmt.Fprintf(tw, "mean\t%g\n", mean)
 	fmt.Fprintf(tw, "std. dev.\t%g\n", stdev)
 	for _, q := range s.quants {
