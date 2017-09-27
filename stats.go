@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/cespare/subcmd"
 )
@@ -14,7 +16,16 @@ var cmds = []subcmd.Command{
 	},
 }
 
+const version = "0.1.0"
+
 func main() {
 	log.SetFlags(0)
+	if len(os.Args) >= 2 {
+		switch os.Args[1] {
+		case "-version", "--version", "-v":
+			fmt.Println(version)
+			return
+		}
+	}
 	subcmd.Run(cmds)
 }
