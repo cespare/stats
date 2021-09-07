@@ -14,7 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/cespare/argf"
-	"github.com/cespare/stats/b"
+	"github.com/cespare/stats/internal/b"
 )
 
 func summarize(args []string) {

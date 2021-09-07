@@ -1,0 +1,4 @@
+github.com/cespare/argf v0.1.0 h1:xxZkxS/SmEBg8ozar2tDOvFsmIXv6DRC2pjVSlEIhQc=
+github.com/cespare/argf v0.1.0/go.mod h1:pcXexWv4NRhioDgZbrAszRCXAcp0HZ7J5cIw2WwC5Zo=
+github.com/cespare/subcmd v1.1.0 h1:r60BAqAKOGcBjxHmV9/WYvq5Qbp3xW9ByB+fRjtty9U=
+github.com/cespare/subcmd v1.1.0/go.mod h1:wnVjukiuhSlhZSgGHUilbkHykG7Oglb0sJXpUQ+MoUw=
