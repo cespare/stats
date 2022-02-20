@@ -10,11 +10,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 	"unicode/utf8"
 
 	"github.com/cespare/argf"
 	"github.com/cespare/stats/internal/b"
+	"github.com/cespare/tabular"
 )
 
 func summarize(args []string) {
@@ -186,23 +186,23 @@ type hist struct {
 }
 
 func (s *summary) String() string {
-	var buf bytes.Buffer
-	tw := tabwriter.NewWriter(&buf, 0, 0, 4, ' ', 0)
+	tb := tabular.New(tabular.Options{Padding: 4, PadChar: ' '})
 
 	n := float64(s.count)
 	mean := s.sum / n
 	stdev := math.Sqrt(n*s.sumSquares-(s.sum*s.sum)) / n
 
-	fmt.Fprintf(tw, "count\t%d\n", s.count)
-	fmt.Fprintf(tw, "min\t%g\n", s.min)
-	fmt.Fprintf(tw, "max\t%g\n", s.max)
-	fmt.Fprintf(tw, "mean\t%g\n", mean)
-	fmt.Fprintf(tw, "std. dev.\t%g\n", stdev)
+	tb.AddRow("count", s.count)
+	tb.AddRow("min", s.min)
+	tb.AddRow("max", s.max)
+	tb.AddRow("mean", mean)
+	tb.AddRow("std. dev.", stdev)
 	for _, q := range s.quants {
-		fmt.Fprintf(tw, "quantile %g\t%g\n", q.q, q.v)
+		tb.AddRow(fmt.Sprintf("quantile %g", q.q), q.v)
 	}
 
-	tw.Flush()
+	var buf bytes.Buffer
+	tb.WriteTo(&buf)
 	b := buf.Bytes()
 	return string(b[:len(b)-1]) // drop the \n
 }
